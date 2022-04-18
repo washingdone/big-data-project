@@ -35,6 +35,15 @@ import org.apache.beam.sdk.values.TypeDescriptors;
 
 public class PageRankMarci {
 
+  private static PCollection<KV<String, String>> mapper1(Pipeline p, String filepath, String filename) {
+    return p.apply(TextIO.read().from(filepath))
+        .apply(Filter.by((String line) -> line.startsWith("[")))
+        .apply(MapElements.into(TypeDescriptors.strings())
+            .via(linkLine -> linkLine.substring(linkLine.indexOf("(") + 1, linkLine.indexOf(")"))))
+        .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
+            .via(link -> KV.of(filename, link)));
+  }
+
   public static void main(String[] args) {
 
     // Create a PipelineOptions object. This object lets us set various execution
@@ -93,13 +102,4 @@ public class PageRankMarci {
     p.run().waitUntilFinish();
   }
 
-  private static PCollection<KV<String, String>> mapper1(Pipeline p, String filepath, String filename) {
-    System.out.println(filename + filepath);
-    return p.apply(TextIO.read().from(filepath))
-        .apply(Filter.by((String line) -> line.startsWith("[")))
-        .apply(MapElements.into(TypeDescriptors.strings())
-            .via(linkLine -> linkLine.substring(linkLine.indexOf("(") + 1, linkLine.indexOf(")"))))
-        .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
-            .via(link -> KV.of(filename, link)));
-  }
 }
