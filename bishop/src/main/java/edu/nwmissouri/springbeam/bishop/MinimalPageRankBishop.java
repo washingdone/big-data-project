@@ -76,7 +76,7 @@ import org.apache.beam.sdk.values.TypeDescriptors;
  */
 public class MinimalPageRankBishop {
 
-  private static PCollection<KV<String, String>> bishopMapper(Pipeline p, String path, String dataFile){
+  private static PCollection<KV<String, String>> bishopMapper(Pipeline p, String path, String file){
     PCollection<String> pcolInputLines = p.apply(TextIO.read().from(path + '/' + file));
 
     PCollection<String> pcolLinkLines = pcolInputLines.apply(Filter.by((String line) -> line.startsWith("[")));
@@ -87,7 +87,7 @@ public class MinimalPageRankBishop {
     );
 
     PCollection<KV<String, String >> KVJob1 = pcolLinks.apply(
-      MapElements.into(TypeDescriptors.kvs(TypeDescriptor.strings(), TypeDescriptors.strings()))
+      MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings()))
       .via(
         (String linkedPage) -> KV.of(file, linkedPage)));
     
@@ -96,6 +96,8 @@ public class MinimalPageRankBishop {
 
   public static void main(String[] args) {
  
+    String dataFolder = "./web04";
+
     PipelineOptions options = PipelineOptionsFactory.create();
 
     Pipeline p = Pipeline.create(options);
@@ -107,8 +109,8 @@ public class MinimalPageRankBishop {
 
     PCollectionList<KV<String, String>> pcList = PCollectionList.of(collectionKV00).and(collectionKV01).and(collectionKV02).and(collectionKV03);
 
+    //Job1: Mapper
     PCollection<KV<String, String>> mergedList = pcList.apply(Flatten.<KV<String, String>>pCollections());
-
 
     //Job 1: Reduce
     PCollection<KV<String, Iterable <String>>> reducedPairs = mergedList.apply(GroupByKey.<String, String>create());
