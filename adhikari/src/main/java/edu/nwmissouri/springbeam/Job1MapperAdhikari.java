@@ -17,24 +17,9 @@
  */
 package edu.nwmissouri.springbeam;
 
-import java.util.ArrayList;
-
-// beam-playground:
-//   name: MinimalWordCount
-//   description: An example that counts words in Shakespeare's works.
-//   multifile: false
-//   pipeline_options:
-//   categories:
-//     - Combiners
-//     - Filtering
-//     - IO
-//     - Core Transforms
-
-import java.util.Arrays;
+import java.util.*;
 import java.util.Collection;
-
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
-
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.TextIO;
@@ -47,6 +32,7 @@ import org.apache.beam.sdk.transforms.FlatMapElements;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
@@ -73,7 +59,7 @@ public class Job1MapperAdhikari {
    * The output of the Job1 Finalizer creates the initial input into our
    * iterative Job 2.
    */
-  /*
+  
   static class Job1Finalizer extends DoFn<KV<String, Iterable<String>>, KV<String, RankedPage>> {
     @ProcessElement
     public void processElement(@Element KV<String, Iterable<String>> element,
@@ -90,7 +76,38 @@ public class Job1MapperAdhikari {
       }
       receiver.output(KV.of(element.getKey(), new RankedPage(element.getKey(), voters)));
     }
-  }*/
+  }
+
+  public static PCollection<KV<String, String>> adhikariKVPairGenerator(Pipeline p, String folderName, String fileName) {
+
+    String dataPath = "./" + folderName + "/" + fileName;
+    PCollection<String> pColLine = p.apply(TextIO.read().from(dataPath));
+
+    PCollection<String> pColLinkLine = pColLine.apply(Filter.by((String linkline) -> linkline.startsWith("[")))
+        .apply(
+            MapElements.into(TypeDescriptors.strings())
+                .via((String linkline) -> linkline.strip()));
+
+    PCollection<String> pColLinks = pColLinkLine.apply(
+        MapElements.into(TypeDescriptors.strings())
+            .via((String linkword) -> (findLink(linkword))));
+
+    PCollection<KV<String, String>> pColKVPairs = pColLinks.apply(
+        MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
+            TypeDescriptors.strings()))
+            .via(
+                (String links) -> KV.of((String) fileName, (String) links)));
+
+    return pColKVPairs;
+  }
+
+  public static String findLink(String line) {
+    String link = "";
+    int beginIndex = line.indexOf("(");
+    int endIndex = line.indexOf(")");
+    link = line.substring(beginIndex + 1, endIndex);
+    return link;
+  }
 
   public static void main(String[] args) {
     // Create a PipelineOptions object. This object lets us set various execution
@@ -119,6 +136,8 @@ public class Job1MapperAdhikari {
     PCollection<KV<String, Iterable<String>>> pColReduced =
      mergedList.apply(GroupByKey.<String, String>create());
 
+    // Convert to a custom Value object (RankedPage) in preparation for Job 2
+    PCollection<KV<String, RankedPage>> job1output = pColReduced.apply(ParDo.of(new Job1Finalizer()));
 
     //Changing to be able to write using TextIO
     PCollection<String> writableFile = pColReduced.apply(MapElements.into(TypeDescriptors.strings())
@@ -127,39 +146,5 @@ public class Job1MapperAdhikari {
     //writing the result
     writableFile.apply(TextIO.write().to("AdhikariPR"));
     p.run().waitUntilFinish();
-  }
-
-  public static PCollection<KV<String, String>> adhikariKVPairGenerator(Pipeline p, String folderName, String fileName) {
-
-    String dataPath = "./" + folderName + "/" + fileName;
-    PCollection<String> pColLine = p.apply(TextIO.read().from(dataPath));
-
-    // .apply(Filter.by((String line) -> !line.isEmpty()))
-    // .apply(Filter.by((String line) -> !line.contentEquals(" ")))
-
-    PCollection<String> pColLinkLine = pColLine.apply(Filter.by((String linkline) -> linkline.startsWith("[")))
-        .apply(
-            MapElements.into(TypeDescriptors.strings())
-                .via((String linkline) -> linkline.strip()));
-
-    PCollection<String> pColLinks = pColLinkLine.apply(
-        MapElements.into(TypeDescriptors.strings())
-            .via((String linkword) -> (findLink(linkword))));
-
-    PCollection<KV<String, String>> pColKVPairs = pColLinks.apply(
-        MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
-            TypeDescriptors.strings()))
-            .via(
-                (String links) -> KV.of((String) fileName, (String) links)));
-
-    return pColKVPairs;
-  }
-
-  public static String findLink(String line) {
-    String link = "";
-    int beginIndex = line.indexOf("(");
-    int endIndex = line.indexOf(")");
-    link = line.substring(beginIndex + 1, endIndex);
-    return link;
   }
 }
