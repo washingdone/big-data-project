@@ -29,6 +29,7 @@ package edu.nwmissouri.springbeam.bishop;
 //     - Core Transforms
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.beam.sdk.Pipeline;
@@ -45,36 +46,44 @@ import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
-import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeDescriptors;
 
-/**
- * An example that counts words in Shakespeare.
- *
- * <p>This class, {@link MinimalWordCount}, is the first in a series of four successively more
- * detailed 'word count' examples. Here, for simplicity, we don't show any error-checking or
- * argument processing, and focus on construction of the pipeline, which chains together the
- * application of core transforms.
- *
- * <p>Next, see the {@link WordCount} pipeline, then the {@link DebuggingWordCount}, and finally the
- * {@link WindowedWordCount} pipeline, for more detailed examples that introduce additional
- * concepts.
- *
- * <p>Concepts:
- *
- * <pre>
- *   1. Reading data from text files
- *   2. Specifying 'inline' transforms
- *   3. Counting items in a PCollection
- *   4. Writing data to text files
- * </pre>
- *
- * <p>No arguments are required to run this pipeline. It will be executed with the DirectRunner. You
- * can see the results in the output files in your current working directory, with names like
- * "wordcounts-00001-of-00005. When running on a distributed service, you would use an appropriate
- * file service.
- */
+
 public class MinimalPageRankBishop {
+  // DEFINE DOFNS
+  // ==================================================================
+  // You can make your pipeline assembly code less verbose by defining
+  // your DoFns statically out-of-line.
+  // Each DoFn<InputT, OutputT> takes previous output
+  // as input of type InputT
+  // and transforms it to OutputT.
+  // We pass this DoFn to a ParDo in our pipeline.
+
+  /**
+   * DoFn Job1Finalizer takes KV(String, String List of outlinks) and transforms
+   * the value into our custom RankedPage Value holding the page's rank and list
+   * of voters.
+   * 
+   * The output of the Job1 Finalizer creates the initial input into our
+   * iterative Job 2.
+   */
+  static class Job1Finalizer extends DoFn<KV<String, Iterable<String>>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, Iterable<String>> element,
+        OutputReceiver<KV<String, RankedPage>> receiver) {
+      Integer contributorVotes = 0;
+      if (element.getValue() instanceof Collection) {
+        contributorVotes = ((Collection<String>) element.getValue()).size();
+      }
+      ArrayList<VotingPage> voters = new ArrayList<VotingPage>();
+      for (String voterName : element.getValue()) {
+        if (!voterName.isEmpty()) {
+          voters.add(new VotingPage(voterName, contributorVotes));
+        }
+      }
+      receiver.output(KV.of(element.getKey(), new RankedPage(element.getKey(), voters)));
+    }
+  }
 
   private static PCollection<KV<String, String>> bishopMapper(Pipeline p, String path, String file){
     PCollection<String> pcolInputLines = p.apply(TextIO.read().from(path + '/' + file));
@@ -114,6 +123,42 @@ public class MinimalPageRankBishop {
 
     //Job 1: Reduce
     PCollection<KV<String, Iterable <String>>> reducedPairs = mergedList.apply(GroupByKey.<String, String>create());
+
+    // Convert to a custom Value object (RankedPage) in preparation for Job 2
+    PCollection<KV<String, RankedPage>> job2in = kvStringReducedPairs.apply(ParDo.of(new Job1Finalizer()));
+
+    // END JOB 1
+    // ========================================
+    // KV{python.md, python.md, 1.00000, 0, [README.md, 1.00000,1]}
+    // KV{go.md, go.md, 1.00000, 0, [README.md, 1.00000,1]}
+    // KV{README.md, README.md, 1.00000, 0, [go.md, 1.00000,3, java.md, 1.00000,3,
+    // python.md, 1.00000,3]}
+    // ========================================
+    // BEGIN ITERATIVE JOB 2
+
+    PCollection<KV<String, RankedPage>> job2out = null; 
+    int iterations = 2;
+    for (int i = 1; i <= iterations; i++) {
+      // use job2in to calculate job2 out
+      // .... write code here
+      // update job2in so it equals the new job2out
+      // ... write code here
+    }
+
+    // END ITERATIVE JOB 2
+    // ========================================
+    // after 40 - output might look like this:
+    // KV{java.md, java.md, 0.69415, 0, [README.md, 1.92054,3]}
+    // KV{python.md, python.md, 0.69415, 0, [README.md, 1.92054,3]}
+    // KV{README.md, README.md, 1.91754, 0, [go.md, 0.69315,1, java.md, 0.69315,1,
+    // python.md, 0.69315,1]}
+
+    // Map KVs to strings before outputting
+    PCollection<String> output = job2out.apply(MapElements.into(
+        TypeDescriptors.strings())
+        .via(kv -> kv.toString()));
+
+    // Write from Beam back out into the real world
 
     PCollection<String> KVOut = reducedPairs.apply(MapElements.into(TypeDescriptors.strings())
       .via((kvpairs) -> kvpairs.toString()));
