@@ -43,6 +43,7 @@ import org.apache.beam.sdk.transforms.FlatMapElements;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
@@ -118,11 +119,14 @@ public class MinimalPageRankBishop {
 
     PCollectionList<KV<String, String>> pcList = PCollectionList.of(collectionKV00).and(collectionKV01).and(collectionKV02).and(collectionKV03);
 
-    //Job1: Mapper
+    //Job 1: Map
     PCollection<KV<String, String>> mergedList = pcList.apply(Flatten.<KV<String, String>>pCollections());
 
     //Job 1: Reduce
     PCollection<KV<String, Iterable <String>>> reducedPairs = mergedList.apply(GroupByKey.<String, String>create());
+
+    // Group by Key to get a single record for each page
+    PCollection<KV<String, Iterable<String>>> kvStringReducedPairs = mergedList.apply(GroupByKey.<String, String>create());
 
     // Convert to a custom Value object (RankedPage) in preparation for Job 2
     PCollection<KV<String, RankedPage>> job2in = kvStringReducedPairs.apply(ParDo.of(new Job1Finalizer()));
