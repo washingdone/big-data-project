@@ -117,7 +117,10 @@ public class MinimalPageRankBishop {
     PCollection<KV<String, String>> collectionKV02 = bishopMapper(p, dataFolder, "python.md");
     PCollection<KV<String, String>> collectionKV03 = bishopMapper(p, dataFolder, "README.md");
 
-    PCollectionList<KV<String, String>> pcList = PCollectionList.of(collectionKV00).and(collectionKV01).and(collectionKV02).and(collectionKV03);
+    PCollectionList<KV<String, String>> pcList = PCollectionList.of(collectionKV00)
+      .and(collectionKV01)
+      .and(collectionKV02)
+      .and(collectionKV03);
 
     //Job 1: Map
     PCollection<KV<String, String>> mergedList = pcList.apply(Flatten.<KV<String, String>>pCollections());
