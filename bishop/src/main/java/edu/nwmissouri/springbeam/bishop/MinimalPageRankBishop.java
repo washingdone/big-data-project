@@ -86,6 +86,10 @@ public class MinimalPageRankBishop {
     }
   }
 
+  //static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {enter script here}
+
+  //static class Job2Updater extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>>{enter script here}
+
   private static PCollection<KV<String, String>> bishopMapper(Pipeline p, String path, String file){
     PCollection<String> pcolInputLines = p.apply(TextIO.read().from(path + '/' + file));
 
@@ -103,6 +107,8 @@ public class MinimalPageRankBishop {
     
     return KVJob1;
   }
+
+//private static  PCollection<KV<String, RankedPage>> runJob2Iteration(...)
 
   public static void main(String[] args) {
  
@@ -147,9 +153,9 @@ public class MinimalPageRankBishop {
     int iterations = 2;
     for (int i = 1; i <= iterations; i++) {
       // use job2in to calculate job2 out
-      // .... write code here
+
       // update job2in so it equals the new job2out
-      // ... write code here
+      job2in = job2out;
     }
 
     // END ITERATIVE JOB 2
