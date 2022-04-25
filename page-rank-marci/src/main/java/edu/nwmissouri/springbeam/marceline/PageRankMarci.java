@@ -18,22 +18,54 @@
 package edu.nwmissouri.springbeam.marceline;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.TypeDescriptors;
 
 public class PageRankMarci {
+
+  static class Job1Map2 extends DoFn<KV<String, Iterable<String>>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, Iterable<String>> inputData,
+        OutputReceiver<KV<String, RankedPage>> returner) {
+      Integer contributorVotes = 0;
+      if (inputData.getValue() instanceof Collection) {
+        contributorVotes = ((Collection<String>) inputData.getValue()).size();
+      }
+      ArrayList<VotingPage> voters = new ArrayList<VotingPage>();
+      for (String voterName : inputData.getValue()) {
+        if (!voterName.isEmpty()) {
+          voters.add(new VotingPage(voterName, contributorVotes));
+        }
+      }
+      returner.output(KV.of(inputData.getKey(), new RankedPage(inputData.getKey(), voters)));
+    }
+  }
+
+  static class Job2Map1 extends DoFn<KV<String,RankedPage>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> inputData, OutputReceiver<KV<String, RankedPage>> returner) {
+      // TODO write code
+
+      returner.output(KV.of(inputData.getKey(), inputData.getValue()));
+    }
+  }
 
   private static PCollection<KV<String, String>> mapper1(Pipeline p, String filepath, String filename) {
     return p.apply(TextIO.read().from(filepath))
@@ -46,31 +78,9 @@ public class PageRankMarci {
 
   public static void main(String[] args) {
 
-    // Create a PipelineOptions object. This object lets us set various execution
-    // options for our pipeline, such as the runner you wish to use. This example
-    // will run with the DirectRunner by default, based on the class path configured
-    // in its dependencies.
     PipelineOptions options = PipelineOptionsFactory.create();
-
-    // In order to run your pipeline, you need to make following runner specific
-    // changes:
-    //
-    // CHANGE 1/3: Select a Beam runner, such as BlockingDataflowRunner
-    // or FlinkRunner.
-    // CHANGE 2/3: Specify runner-required options.
-    // For BlockingDataflowRunner, set project and temp location as follows:
-    // DataflowPipelineOptions dataflowOptions =
-    // options.as(DataflowPipelineOptions.class);
-    // dataflowOptions.setRunner(BlockingDataflowRunner.class);
-    // dataflowOptions.setProject("SET_YOUR_PROJECT_ID_HERE");
-    // dataflowOptions.setTempLocation("gs://SET_YOUR_BUCKET_NAME_HERE/AND_TEMP_DIRECTORY");
-    // For FlinkRunner, set the runner as follows. See {@code FlinkPipelineOptions}
-    // for more details.
-    // options.as(FlinkPipelineOptions.class)
-    // .setRunner(FlinkRunner.class);
-
-    // Create the Pipeline object with the options we defined above
     Pipeline p = Pipeline.create(options);
+
     String inputFolder = "pages";
     String outputFolder = "MarciOutputs";
     PCollectionList<KV<String, String>> combinedData = PCollectionList.empty(p);
@@ -95,6 +105,7 @@ public class PageRankMarci {
 
     combinedData.apply(Flatten.<KV<String, String>>pCollections())
         .apply(GroupByKey.create())
+        .apply(ParDo.of(new Job1Map2()))
         .apply(MapElements.into(TypeDescriptors.strings())
             .via((kvpairs) -> kvpairs.toString()))
         .apply(TextIO.write().to(outputFolder + "\\"));
