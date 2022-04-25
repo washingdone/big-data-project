@@ -14,4 +14,8 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+<<<<<<< HEAD
 MarciOutputs/*
+=======
+page-rank-marci/MarciOutputs
+>>>>>>> 154629bf416a4e46f1d7fc445421cb08834f5df6
