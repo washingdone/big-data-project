@@ -102,25 +102,29 @@ public class Job1MapperAdhikari {
       
     }
   }
-/*
-  static class Job2Updater extends DoFn<KV<String, Iterable<String>>, KV<String, RankedPage>> {
+
+  static class Job2Updater extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>> {
     @ProcessElement
-    public void processElement(@Element KV<String, Iterable<String>> element,
+    public void processElement(@Element KV<String, Iterable<RankedPage>> element,
         OutputReceiver<KV<String, RankedPage>> receiver) {
-      Integer contributorVotes = 0;
-      if (element.getValue() instanceof Collection) {
-        contributorVotes = ((Collection<String>) element.getValue()).size();
-      }
-      ArrayList<VotingPage> voters = new ArrayList<VotingPage>();
-      for (String voterName : element.getValue()) {
-        if (!voterName.isEmpty()) {
-          voters.add(new VotingPage(voterName, contributorVotes));
+    String thisPage = element.getKey();
+    Iterable<RankedPage> rankedPages = element.getValue();
+    Double dampingFactor = 0.85;
+    Double updatedRank = (1-dampingFactor);
+    ArrayList<VotingPage> newVoters = new ArrayList<VotingPage>();
+    for(RankedPage pg : rankedPages){
+      if(pg != null){
+        for(VotingPage vp : pg.getVoters()){
+          newVoters.add(vp);
+          updatedRank += (dampingFactor) * vp.getRank() / (double)vp.getVotes();
         }
       }
-      receiver.output(KV.of(element.getKey(), new RankedPage(element.getKey(), voters)));
     }
+    receiver.output(KV.of(thisPage, new RankedPage(thisPage, updatedRank, newVoters)));
+    }
+
   }
-*/
+
   public static PCollection<KV<String, String>> adhikariKVPairGenerator(Pipeline p, String folderName, String fileName) {
 
     String dataPath = "./" + folderName + "/" + fileName;
@@ -169,8 +173,8 @@ public class Job1MapperAdhikari {
       .apply(ParDo.of(new Job2Mapper()));
     PCollection<KV<String, Iterable<RankedPage>>> reducedKVs = mappedKVs
       .apply(GroupByKey.<String, RankedPage>create());
-   // PCollection<KV<String, RankedPage>> updatedOutput = reducedKVs
-    //  .apply(ParDo.of(new Job2Updater()));
+    PCollection<KV<String, RankedPage>> updatedOutput = reducedKVs
+      .apply(ParDo.of(new Job2Updater()));
 
     return reducedKVs;
      
@@ -209,18 +213,17 @@ public class Job1MapperAdhikari {
 
 
     //END OF JOB1
-    PCollection<KV<String, RankedPage>> mappedKVs = job1output
-      .apply(ParDo.of(new Job2Mapper()));
-/*
-    PCollection<KV<String, RankedPage>> job2output = null;
-    int iterations =1;
+    PCollection<KV<String, RankedPage>> updatedOutput = null;
+    int iterations =50;
     for (int i =0; i<iterations; i++){
-      // use job2 input to calculate job2 output.. code goes here
-      // update job2 input so it equals the new job2 output
+      PCollection<KV<String, RankedPage>> mappedKVs = job1output
+        .apply(ParDo.of(new Job2Mapper()));
+      PCollection<KV<String, Iterable<RankedPage>>> reducedKVs = mappedKVs
+        .apply(GroupByKey.<String, RankedPage>create());
+      updatedOutput = reducedKVs.apply(ParDo.of(new Job2Updater()));
     }
-*/
     //Changing to be able to write using TextIO
-    PCollection<String> writableFile = job1output.apply(MapElements.into(TypeDescriptors.strings())
+    PCollection<String> writableFile = updatedOutput.apply(MapElements.into(TypeDescriptors.strings())
     .via((kvpairs) -> kvpairs.toString()));
     //writing the result
     writableFile.apply(TextIO.write().to("AdhikariPR"));
