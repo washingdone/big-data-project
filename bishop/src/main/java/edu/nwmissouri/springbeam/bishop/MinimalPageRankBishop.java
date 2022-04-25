@@ -86,7 +86,27 @@ public class MinimalPageRankBishop {
     }
   }
 
-  //static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {enter script here}
+  static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> element,
+      OutputReceiver<KV<String, RankedPage>> reciever){
+        Integer votes = 0;
+        ArrayList<VotingPage> voters = element.getValue().getVoters();
+        if (voters instanceof Collection){
+          votes = ((Collection<VotingPage>) voters).size();
+        }
+        for (VotingPage vp : voters){
+          String pageName = vp.getName();
+          Double pageRank = vp.getRank();
+          String contributingPageName = element.getKey();
+          Double contributingPageRank = element.getValue().getRank();
+          VotingPage contributor = new VotingPage(contributingPageName, contributingPageRank, votes);
+          ArrayList<VotingPage> arr = new ArrayList<VotingPage>();
+          arr.add(contributor);
+          reciever.output(KV.of(vp.getName(), new RankedPage(pageName, pageRank, arr)));
+        }
+      }
+  }
 
   //static class Job2Updater extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>>{enter script here}
 
