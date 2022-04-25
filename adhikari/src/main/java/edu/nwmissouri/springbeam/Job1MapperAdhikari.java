@@ -78,6 +78,49 @@ public class Job1MapperAdhikari {
     }
   }
 
+  static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> element,
+        OutputReceiver<KV<String, RankedPage>> receiver) {
+      Integer NumOfVotes=0;
+      ArrayList<VotingPage> voters = element.getValue().getVoters();
+
+      if (element.getValue().getVoters() instanceof Collection){
+        NumOfVotes = ((Collection<VotingPage>)element.getValue().getVoters()).size();
+      }
+
+      for(VotingPage page: voters){
+        String pageName = page.getNames();
+        Double pageRank = page.getRank();
+        String contributingPageName = element.getKey();
+        Double contributingPageRank = element.getValue().getRank();
+        VotingPage contributor = new VotingPage(contributingPageName, contributingPageRank, NumOfVotes);
+        ArrayList<VotingPage> arr = new ArrayList<VotingPage>();
+        arr.add(contributor);
+        receiver.output(KV.of(page.getNames(), new RankedPage(pageName, pageRank,arr)));
+      }
+      
+    }
+  }
+/*
+  static class Job2Updater extends DoFn<KV<String, Iterable<String>>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, Iterable<String>> element,
+        OutputReceiver<KV<String, RankedPage>> receiver) {
+      Integer contributorVotes = 0;
+      if (element.getValue() instanceof Collection) {
+        contributorVotes = ((Collection<String>) element.getValue()).size();
+      }
+      ArrayList<VotingPage> voters = new ArrayList<VotingPage>();
+      for (String voterName : element.getValue()) {
+        if (!voterName.isEmpty()) {
+          voters.add(new VotingPage(voterName, contributorVotes));
+        }
+      }
+      receiver.output(KV.of(element.getKey(), new RankedPage(element.getKey(), voters)));
+    }
+  }
+*/
   public static PCollection<KV<String, String>> adhikariKVPairGenerator(Pipeline p, String folderName, String fileName) {
 
     String dataPath = "./" + folderName + "/" + fileName;
@@ -109,6 +152,31 @@ public class Job1MapperAdhikari {
     return link;
   }
 
+ /**
+   * Run one iteration of the Job 2 Map-Reduce process
+   * Notice how the Input Type to Job 2.
+   * Matches the Output Type from Job 2.
+   * How important is that for an iterative process?
+   * 
+   * @param kvReducedPairs - takes a PCollection<KV<String, RankedPage>> with
+   *                       initial ranks.
+   * @return - returns a PCollection<KV<String, RankedPage>> with updated ranks.
+   */
+  /*
+  private static PCollection<KV<String, RankedPage>> runJOb2Iteration(
+   PCollection<KV<String, RankedPage>> kvReducedPairs){
+    PCollection<KV<String, RankedPage>> mappedKVs = kvReducedPairs
+      .apply(ParDo.of(new Job2Mapper()));
+    PCollection<KV<String, Iterable<RankedPage>>> reducedKVs = mappedKVs
+      .apply(GroupByKey.<String, RankedPage>create());
+   // PCollection<KV<String, RankedPage>> updatedOutput = reducedKVs
+    //  .apply(ParDo.of(new Job2Updater()));
+
+    return reducedKVs;
+     
+   }
+   */
+ 
   public static void main(String[] args) {
     // Create a PipelineOptions object. This object lets us set various execution
     // options for our pipeline, such as the runner you wish to use. This example
@@ -139,10 +207,21 @@ public class Job1MapperAdhikari {
     // Convert to a custom Value object (RankedPage) in preparation for Job 2
     PCollection<KV<String, RankedPage>> job1output = pColReduced.apply(ParDo.of(new Job1Finalizer()));
 
-    //Changing to be able to write using TextIO
-    PCollection<String> writableFile = pColReduced.apply(MapElements.into(TypeDescriptors.strings())
-        .via((kvpairs) -> kvpairs.toString()));
 
+    //END OF JOB1
+    PCollection<KV<String, RankedPage>> mappedKVs = job1output
+      .apply(ParDo.of(new Job2Mapper()));
+/*
+    PCollection<KV<String, RankedPage>> job2output = null;
+    int iterations =1;
+    for (int i =0; i<iterations; i++){
+      // use job2 input to calculate job2 output.. code goes here
+      // update job2 input so it equals the new job2 output
+    }
+*/
+    //Changing to be able to write using TextIO
+    PCollection<String> writableFile = job1output.apply(MapElements.into(TypeDescriptors.strings())
+    .via((kvpairs) -> kvpairs.toString()));
     //writing the result
     writableFile.apply(TextIO.write().to("AdhikariPR"));
     p.run().waitUntilFinish();
