@@ -155,31 +155,6 @@ public class Job1MapperAdhikari {
     link = line.substring(beginIndex + 1, endIndex);
     return link;
   }
-
- /**
-   * Run one iteration of the Job 2 Map-Reduce process
-   * Notice how the Input Type to Job 2.
-   * Matches the Output Type from Job 2.
-   * How important is that for an iterative process?
-   * 
-   * @param kvReducedPairs - takes a PCollection<KV<String, RankedPage>> with
-   *                       initial ranks.
-   * @return - returns a PCollection<KV<String, RankedPage>> with updated ranks.
-   */
-  /*
-  private static PCollection<KV<String, RankedPage>> runJOb2Iteration(
-   PCollection<KV<String, RankedPage>> kvReducedPairs){
-    PCollection<KV<String, RankedPage>> mappedKVs = kvReducedPairs
-      .apply(ParDo.of(new Job2Mapper()));
-    PCollection<KV<String, Iterable<RankedPage>>> reducedKVs = mappedKVs
-      .apply(GroupByKey.<String, RankedPage>create());
-    PCollection<KV<String, RankedPage>> updatedOutput = reducedKVs
-      .apply(ParDo.of(new Job2Updater()));
-
-    return reducedKVs;
-     
-   }
-   */
  
   public static void main(String[] args) {
     // Create a PipelineOptions object. This object lets us set various execution
@@ -213,15 +188,26 @@ public class Job1MapperAdhikari {
 
 
     //END OF JOB1
+   
     PCollection<KV<String, RankedPage>> updatedOutput = null;
+    PCollection<KV<String, RankedPage>> mappedKVs = null;
+
     int iterations =50;
     for (int i =0; i<iterations; i++){
-      PCollection<KV<String, RankedPage>> mappedKVs = job1output
-        .apply(ParDo.of(new Job2Mapper()));
+      if(i==0){
+        mappedKVs = job1output
+          .apply(ParDo.of(new Job2Mapper()));
+      }else{
+        mappedKVs = updatedOutput
+          .apply(ParDo.of(new Job2Mapper()));
+      }
+      
+      
       PCollection<KV<String, Iterable<RankedPage>>> reducedKVs = mappedKVs
         .apply(GroupByKey.<String, RankedPage>create());
       updatedOutput = reducedKVs.apply(ParDo.of(new Job2Updater()));
     }
+    
     //Changing to be able to write using TextIO
     PCollection<String> writableFile = updatedOutput.apply(MapElements.into(TypeDescriptors.strings())
     .via((kvpairs) -> kvpairs.toString()));
