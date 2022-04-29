@@ -17,13 +17,11 @@
  */
 package edu.nwmissouri.springbeam.adhikari;
 
+import java.io.File;
 import java.util.*;
 import java.util.Collection;
-
-import javax.naming.ldap.SortControl;
-import javax.naming.ldap.SortKey;
-
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.io.FileSystemUtils;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -37,6 +35,8 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.TypeDescriptors;
+
+
 
 
 
@@ -148,13 +148,35 @@ public class PageRankReason {
   }
  
 
-  static class sortPages extends DoFn<KV<String, RankedPage>, KV<Double, String>> {
+  static class mapToRankPage extends DoFn<KV<String, RankedPage>, KV<Double, String>> {
     @ProcessElement
     public void processElement(@Element KV<String, RankedPage> element,
         OutputReceiver<KV<Double, String>> receiver) {
     String pageName = element.getKey();
     Double pageRank = element.getValue().getRank();
     receiver.output(KV.of(pageRank, pageName));
+    }
+  }
+
+  static class sortPages extends DoFn<KV<Double, String>, KV<Double, String>> {
+    @ProcessElement
+    public void processElement(@Element KV<Double, String> element,
+        OutputReceiver<KV<Double, String>> receiver) {
+    PCollectionList<KV<Double, String>> sortedValues = null;
+    int min= 0;
+    if(element.getKey()>min){
+      min=1;
+    }
+    receiver.output(KV.of(null, null));
+    }
+  }
+
+  private static void deleteOutputFiles(){
+    final File dir = new File("./AdhikariOutput/");
+    for (File f: dir.listFiles()){
+      if (f.getName().startsWith("AdhikariPR")){
+        f.delete();
+      }
     }
   }
   public static void main(String[] args) {
@@ -207,25 +229,23 @@ public class PageRankReason {
       updatedOutput = reducedKVs.apply(ParDo.of(new Job2Updater()));
     }
 
-    /*
-    //sorting according to page values
-    //PCollection<KV<Double, String>> mappedToNameRank = updatedOutput.apply(ParDo.of(new sortPages()));
-
-    //PCollection<KV<Double, Iterable<String>>> groupedByKey = mappedToNameRank.apply(GroupByKey.create());
-
-    //PCollection<KV<Double, String>> sortedPage = mappedToNameRank.apply(SortKey.<Double, String>create(BufferedExternalSorter.options()));
+    //JOB 3
+    //mapping job2 output to rank-page KV pairs
+    PCollection<KV<Double, String>> mappedToNameRank = updatedOutput.apply(ParDo.of(new mapToRankPage()));
+    PCollectionList<KV<Double, String>> sortedPColList = PCollectionList.of(mappedToNameRank);
+    PCollection<KV<Double, String>> sortedMerge = sortedPColList.apply(Flatten.pCollections());
+   
     
 
-    PCollectionList<KV<Double, String>> sortedPages = null;
-    while(mappedToNameRank.hasSchema()){
-
-    }
-*/
     //Changing to be able to write using TextIO
-    PCollection<String> writableFile = updatedOutput.apply(MapElements.into(TypeDescriptors.strings())
+    PCollection<String> writableFile = sortedMerge.apply(MapElements.into(TypeDescriptors.strings())
       .via((kvpairs) -> kvpairs.toString()));
+    
+    //Deleting output files before creating new files
+    deleteOutputFiles();
+    
     //writing the result
-    writableFile.apply(TextIO.write().to("AdhikariPR"));
+    writableFile.apply(TextIO.write().to("AdhikariOutput/AdhikariPR"));
     p.run().waitUntilFinish();
   }
 }
