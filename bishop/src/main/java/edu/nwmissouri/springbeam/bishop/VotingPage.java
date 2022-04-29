@@ -2,33 +2,33 @@ package edu.nwmissouri.springbeam.bishop;
 import java.io.Serializable;
 
 public class VotingPage implements Serializable {
-    String voteName = "unknown.md";
-    Double voteRank = 1.0;
+    String name = "unknown";
+    Double rank = 1.0;
     Integer votes = 0;
     /**
      * Constructor for page name and count of votes made
-     * @param voteNameIn
+     * @param nameIn
      * @param votesIn
      */
-    public VotingPage(String voteNameIn, Integer votesIn){
-        this.voteName = voteNameIn;
+    public VotingPage(String nameIn, Integer votesIn){
+        this.nameIn = nameIn;
         this.votes = votesIn;
     }
     /**
      * Constructor for page, rank, and count of votes made
      * 
-     * @param voteNameIn    - page name
-     * @param voteRankIn    - page rank
+     * @param nameIn    - page name
+     * @param rankIn    - page rank
      * @param votesIn       - count of votes made
      */
 
-    public VotingPage(String, voteNameIn, Double voteRankIn, Integer votesIn){
-        this.voteName = voteNameIn;
-        this.voteRank = voteRankIn;
+    public VotingPage(String, nameIn, Double rankIn, Integer votesIn){
+        this.name = nameIn;
+        this.rank = rankIn;
         this.votes = votesIn;
     }
     public Double getRank(){
-        return this.pageRank;
+        return this.rank;
     }
 
     public Integer getVotes(){
@@ -36,11 +36,11 @@ public class VotingPage implements Serializable {
     }
 
     public String getName(){
-        return this.voteName;
+        return this.name;
     }
 
     @Override
     public String toString(){
-        return String.format("%s, %.5ft, %d", this.voteName, this.voteRank, this.votes);
+        return String.format("%s, %.5f, %d", this.name, this.rank, this.votes);
     }
 }
