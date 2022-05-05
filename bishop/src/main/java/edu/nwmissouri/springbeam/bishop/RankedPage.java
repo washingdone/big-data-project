@@ -4,32 +4,32 @@ import java.util.ArrayList;
 import java.io.Serializable;
 
 public class RankedPage implements Serializable {
-    String pageName = "unknown.md";
-    Double pageRank = 1.000;
-    ArrayList<VotingPage> pageVoters = new ArrayList<VotingPage>();
+    String name = "unknown.md";
+    Double rank = 1.000;
+    ArrayList<VotingPage> voters = new ArrayList<VotingPage>();
     /**
      * Constructors with name and list of pages point to voting for this page are as follows:
      *
-     * @param pageNameIn    - this page name
-     * @param pageVotersIn  - array list of pages pointing to this page
+     * @param nameIn    - this page name
+     * @param votersIn  - array list of pages pointing to this page
      */
 
-     RankedPage(String pageNameIn, ArrayList<VotingPage> pageVotersIn){
-         this.pageName = pageNameIn;
-         this.pageVoters = pageVotersIn;
+     RankedPage(String nameIn, ArrayList<VotingPage> votersIn){
+         this.name = nameIn;
+         this.voters = votersIn;
      }
      /**
      * Constructor with name, rank, and list of pages pointing to voting for this page are as follows:
      * 
-     * @param pageNameIn    - this page name
-     * @param pageRankIn    - this page's rank
-     * @param pageVotersIn - array list of pages pointing to this page
+     * @param nameIn    - this page name
+     * @param rankIn    - this page's rank
+     * @param votersIn - array list of pages pointing to this page
      */
 
-    public RankedPage (String pageNameIn, Double pageRankIn, ArrayList<VotingPage> pageVotersIn) {
-        this.pageName = pageNameIn;
-        this.pageRank = pageRankIn;
-        this.pageVoters = pageVotersIn;
+    public RankedPage (String nameIn, Double rankIn, ArrayList<VotingPage> votersIn) {
+        this.name = nameIn;
+        this.rank = rankIn;
+        this.voters = votersIn;
     }
 
     public Double getRank(){
@@ -37,10 +37,10 @@ public class RankedPage implements Serializable {
     }
 
     public ArrayList<VotingPage> getVoters(){
-        return this.pageVoters;
+        return this.voters;
     } 
     @Override
     public String toString(){
-        return String.format("%s, %.5f, %s", this.pageName, this.pageRank, this.pageVoters.toString());
+        return String.format("%s, %.5f, %s", this.name, this.rank, this.voters.toString());
     }
 }

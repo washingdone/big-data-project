@@ -15,20 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package edu.nwmissouri.springbeam;
+package edu.nwmissouri.springbeam.adhikari;
 
+import java.io.File;
 import java.util.*;
 import java.util.Collection;
-import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.io.FileIO;
+import org.apache.beam.sdk.io.FileSystemUtils;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Filter;
-import org.apache.beam.sdk.transforms.FlatMapElements;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.MapElements;
@@ -36,12 +34,13 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
-import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeDescriptors;
 
 
 
-public class Job1MapperAdhikari {
+
+
+public class PageRankReason {
     // DEFINE DOFNS
   // ==================================================================
   // You can make your pipeline assembly code less verbose by defining
@@ -51,14 +50,6 @@ public class Job1MapperAdhikari {
   // and transforms it to OutputT.
   // We pass this DoFn to a ParDo in our pipeline.
 
-  /**
-   * DoFn Job1Finalizer takes KV(String, String List of outlinks) and transforms
-   * the value into our custom RankedPage Value holding the page's rank and list
-   * of voters.
-   * 
-   * The output of the Job1 Finalizer creates the initial input into our
-   * iterative Job 2.
-   */
   
   static class Job1Finalizer extends DoFn<KV<String, Iterable<String>>, KV<String, RankedPage>> {
     @ProcessElement
@@ -76,6 +67,53 @@ public class Job1MapperAdhikari {
       }
       receiver.output(KV.of(element.getKey(), new RankedPage(element.getKey(), voters)));
     }
+  }
+
+  static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> element,
+        OutputReceiver<KV<String, RankedPage>> receiver) {
+      Integer NumOfVotes=0;
+      ArrayList<VotingPage> voters = element.getValue().getVoters();
+
+      if (element.getValue().getVoters() instanceof Collection){
+        NumOfVotes = ((Collection<VotingPage>)element.getValue().getVoters()).size();
+      }
+
+      for(VotingPage page: voters){
+        String pageName = page.getNames();
+        Double pageRank = page.getRank();
+        String contributingPageName = element.getKey();
+        Double contributingPageRank = element.getValue().getRank();
+        VotingPage contributor = new VotingPage(contributingPageName, contributingPageRank, NumOfVotes);
+        ArrayList<VotingPage> votingPageArr = new ArrayList<VotingPage>();
+        votingPageArr.add(contributor);
+        receiver.output(KV.of(page.getNames(), new RankedPage(pageName, pageRank,votingPageArr)));
+      }
+      
+    }
+  }
+
+  static class Job2Updater extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, Iterable<RankedPage>> element,
+        OutputReceiver<KV<String, RankedPage>> receiver) {
+    String page = element.getKey();
+    Iterable<RankedPage> rankedPages = element.getValue();
+    Double dampingFactor = 0.85;
+    Double updatedRank = (1-dampingFactor);
+    ArrayList<VotingPage> newVoters = new ArrayList<VotingPage>();
+    for(RankedPage pg : rankedPages){
+      if(pg != null){
+        for(VotingPage vPage : pg.getVoters()){
+          newVoters.add(vPage);
+          updatedRank += (dampingFactor) * vPage.getRank() / (double)vPage.getVotes();
+        }
+      }
+    }
+    receiver.output(KV.of(page, new RankedPage(page, updatedRank, newVoters)));
+    }
+
   }
 
   public static PCollection<KV<String, String>> adhikariKVPairGenerator(Pipeline p, String folderName, String fileName) {
@@ -108,7 +146,39 @@ public class Job1MapperAdhikari {
     link = line.substring(beginIndex + 1, endIndex);
     return link;
   }
+ 
 
+  static class mapToRankPage extends DoFn<KV<String, RankedPage>, KV<Double, String>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> element,
+        OutputReceiver<KV<Double, String>> receiver) {
+    String pageName = element.getKey();
+    Double pageRank = element.getValue().getRank();
+    receiver.output(KV.of(pageRank, pageName));
+    }
+  }
+
+  static class sortPages extends DoFn<KV<Double, String>, KV<Double, String>> {
+    @ProcessElement
+    public void processElement(@Element KV<Double, String> element,
+        OutputReceiver<KV<Double, String>> receiver) {
+    PCollectionList<KV<Double, String>> sortedValues = null;
+    int min= 0;
+    if(element.getKey()>min){
+      min=1;
+    }
+    receiver.output(KV.of(null, null));
+    }
+  }
+
+  private static void deleteOutputFiles(){
+    final File dir = new File("./AdhikariOutput/");
+    for (File f: dir.listFiles()){
+      if (f.getName().startsWith("AdhikariPR")){
+        f.delete();
+      }
+    }
+  }
   public static void main(String[] args) {
     // Create a PipelineOptions object. This object lets us set various execution
     // options for our pipeline, such as the runner you wish to use. This example
@@ -139,12 +209,43 @@ public class Job1MapperAdhikari {
     // Convert to a custom Value object (RankedPage) in preparation for Job 2
     PCollection<KV<String, RankedPage>> job1output = pColReduced.apply(ParDo.of(new Job1Finalizer()));
 
-    //Changing to be able to write using TextIO
-    PCollection<String> writableFile = pColReduced.apply(MapElements.into(TypeDescriptors.strings())
-        .via((kvpairs) -> kvpairs.toString()));
 
+    //END OF JOB1
+   
+    PCollection<KV<String, RankedPage>> updatedOutput = null;
+    PCollection<KV<String, RankedPage>> mappedKVs = null;
+
+    int iterations =50;
+    for (int i =0; i<iterations; i++){
+      if(i==0){
+        mappedKVs = job1output
+          .apply(ParDo.of(new Job2Mapper()));
+      }else{
+        mappedKVs = updatedOutput
+          .apply(ParDo.of(new Job2Mapper()));
+      }      
+      PCollection<KV<String, Iterable<RankedPage>>> reducedKVs = mappedKVs
+        .apply(GroupByKey.<String, RankedPage>create());
+      updatedOutput = reducedKVs.apply(ParDo.of(new Job2Updater()));
+    }
+
+    //JOB 3
+    //mapping job2 output to rank-page KV pairs
+    PCollection<KV<Double, String>> mappedToNameRank = updatedOutput.apply(ParDo.of(new mapToRankPage()));
+    PCollectionList<KV<Double, String>> sortedPColList = PCollectionList.of(mappedToNameRank);
+    PCollection<KV<Double, String>> sortedMerge = sortedPColList.apply(Flatten.pCollections());
+   
+    
+
+    //Changing to be able to write using TextIO
+    PCollection<String> writableFile = sortedMerge.apply(MapElements.into(TypeDescriptors.strings())
+      .via((kvpairs) -> kvpairs.toString()));
+    
+    //Deleting output files before creating new files
+    deleteOutputFiles();
+    
     //writing the result
-    writableFile.apply(TextIO.write().to("AdhikariPR"));
+    writableFile.apply(TextIO.write().to("AdhikariOutput/AdhikariPR"));
     p.run().waitUntilFinish();
   }
 }

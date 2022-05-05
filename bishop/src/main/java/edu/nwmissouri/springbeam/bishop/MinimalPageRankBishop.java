@@ -32,6 +32,9 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import javax.naming.ldap.SortControl;
+import javax.naming.ldap.SortKey;
+
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -86,11 +89,51 @@ public class MinimalPageRankBishop {
     }
   }
 
-  //static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {enter script here}
+  static class Job2Mapper extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> element,
+      OutputReceiver<KV<String, RankedPage>> reciever){
+        Integer votes = 0;
+        ArrayList<VotingPage> voters = element.getValue().getVoters();
+        if (voters instanceof Collection){
+          votes = ((Collection<VotingPage>) voters).size();
+        }
+        for (VotingPage vp : voters){
+          String pageName = vp.getName();
+          Double pageRank = vp.getRank();
+          String contributingPageName = element.getKey();
+          Double contributingPageRank = element.getValue().getRank();
+          VotingPage contributor = new VotingPage(contributingPageName, contributingPageRank, votes);
+          ArrayList<VotingPage> arr = new ArrayList<VotingPage>();
+          arr.add(contributor);
+          reciever.output(KV.of(vp.getName(), new RankedPage(pageName, pageRank, arr)));
+        }
+      }
+  }
 
-  //static class Job2Updater extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>>{enter script here}
+  static class Job2Updater extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>>{
+    @ProcessElement
+    public void processElement(@Element KV<String, Iterable<RankedPage>> element,
+     OutputReceiver<KV<String, RankedPage>> receiver){
+       String page = element.getKey();
+       Iterable<RankedPage> rankedPages = element.getValue();
+       Double dampingFactor = 0.85;
+       Double updatedRank = (1 - dampingFactor);
+       ArrayList<VotingPage> newVoters = new ArrayList<VotingPage>();
+       for (RankedPage pg : rankedPages){
+         if (pg != null){
+           for (VotingPage vPage : pg.getVoters){
+             newVoters.add(vPage);
+             updatedRank += (dampingFactor) * vPage.getRank() / (double)vPage.getVotes();
+           }
+         }
+       }
+       receiver.output(KV.of(page, new RankedPage(page, updatedRank, newVoters)));
+      }
+  }
 
   private static PCollection<KV<String, String>> bishopMapper(Pipeline p, String path, String file){
+    
     PCollection<String> pcolInputLines = p.apply(TextIO.read().from(path + '/' + file));
 
     PCollection<String> pcolLinkLines = pcolInputLines.apply(Filter.by((String line) -> line.startsWith("[")));
@@ -108,8 +151,23 @@ public class MinimalPageRankBishop {
     return KVJob1;
   }
 
-//private static  PCollection<KV<String, RankedPage>> runJob2Iteration(...)
+  public static String findLink(String line){
+    String link = "";
+    int beginIndex = line.indexOf("(");
+    int endIndex = line.indexOf(")");
+    link = line.substring(beginIndex + 1, endIndex);
+    return link;
+  }
 
+  static class sortPages extends DoFn<KV<String, RankedPage>, KV<Double, String>> {
+    @ProcessElement
+    public void processElement(@Element KV<String, RankedPage> element,
+     OutputReceiver<KV<Double, String>> receiver){
+       String pageName = element.getKey();
+       Double pageRank = element.getValue().getRank();
+       receiver.output(KV.of(pageRank, pageName));
+     }
+  }
   public static void main(String[] args) {
  
     String dataFolder = "./web04";
@@ -149,13 +207,22 @@ public class MinimalPageRankBishop {
     // ========================================
     // BEGIN ITERATIVE JOB 2
 
-    PCollection<KV<String, RankedPage>> job2out = null; 
-    int iterations = 2;
-    for (int i = 1; i <= iterations; i++) {
-      // use job2in to calculate job2 out
+    PCollection<KV<String, RankedPage>> updatedOutput = null;
+    PCollection<KV<String, RankedPage>> mappedKV = null;
 
-      // update job2in so it equals the new job2out
-      job2in = job2out;
+    int iterations = 50;
+    for (int i = 0; i < iterations; i++) {
+      if (i==0){
+        mappedKV = job2in
+        .apply(ParDo.of(new Job2Mapper()));
+      }
+      else{
+        mappedKV = updatedOutput
+        .apply(ParDo.of(new Job2Mapper()));
+      }
+      PCollection<KV<String, Iterable<RankedPage>>> reducedKV = mappedKV
+      .apply(GroupByKey.<String, RankedPage>create());
+      updatedOutput = reducedKV.apply(ParDo.of(new Job2Updater()));
     }
 
     // END ITERATIVE JOB 2
@@ -167,7 +234,7 @@ public class MinimalPageRankBishop {
     // python.md, 0.69315,1]}
 
     // Map KVs to strings before outputting
-    PCollection<String> output = job2out.apply(MapElements.into(
+    PCollection<String> output = updatedOutput.apply(MapElements.into(
         TypeDescriptors.strings())
         .via(kv -> kv.toString()));
 
@@ -176,7 +243,7 @@ public class MinimalPageRankBishop {
     PCollection<String> KVOut = reducedPairs.apply(MapElements.into(TypeDescriptors.strings())
       .via((kvpairs) -> kvpairs.toString()));
 
-      KVOut.apply(TextIO.write().to("bishopout"));
+      output.apply(TextIO.write().to("bishopout"));
 
     p.run().waitUntilFinish();
   }
