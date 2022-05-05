@@ -30,6 +30,12 @@ public class VotingPage implements Serializable {
     this.rank = 1.0;
   }
 
+  VotingPage(String voterName, int contributorVotes, double rank) {
+    this.voterName = voterName;
+    this.contributorVotes = contributorVotes;
+    this.rank = rank;
+  }
+
   public String toString() {
     String data = this.voterName;
     data += ", CV:" + this.contributorVotes;

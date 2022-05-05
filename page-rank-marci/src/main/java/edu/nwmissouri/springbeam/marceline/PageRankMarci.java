@@ -18,6 +18,7 @@
 package edu.nwmissouri.springbeam.marceline;
 
 import java.io.File;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -58,12 +59,43 @@ public class PageRankMarci {
     }
   }
 
-  static class Job2Map1 extends DoFn<KV<String,RankedPage>, KV<String, RankedPage>> {
+  static class Job2Map1 extends DoFn<KV<String, RankedPage>, KV<String, RankedPage>> {
     @ProcessElement
-    public void processElement(@Element KV<String, RankedPage> inputData, OutputReceiver<KV<String, RankedPage>> returner) {
-      // TODO write code
+    public void processElement(@Element KV<String, RankedPage> inputData,
+        OutputReceiver<KV<String, RankedPage>> returner) {
+      Integer votes = 0;
+      ArrayList<VotingPage> voters = inputData.getValue().getVoters();
+      if (voters instanceof Collection) {
+        votes = voters.size();
+      }
+      for (VotingPage votingPage : voters) {
+        String votingPageName = votingPage.getVoterName();
+        Double votingPageRank = votingPage.getRank();
+        String contribPageName = inputData.getKey();
+        Double contribPageRank = inputData.getValue().getRank();
 
-      returner.output(KV.of(inputData.getKey(), inputData.getValue()));
+        VotingPage contrib = new VotingPage(contribPageName, votes, contribPageRank);
+        ArrayList<VotingPage> votingPageArray = new ArrayList<VotingPage>();
+        votingPageArray.add(contrib);
+        returner
+            .output(KV.of(votingPage.getVoterName(), new RankedPage(votingPageName, votingPageArray, votingPageRank)));
+      }
+    }
+  }
+
+  static class Job2Logic extends DoFn<KV<String, Iterable<RankedPage>>, KV<String, RankedPage>> {
+    @ProcessElement
+    public void processElement(KV<String, Iterable<RankedPage>> inputData,
+        OutputReceiver<KV<String, RankedPage>> returner) {
+      // Integer voteWeight = 0;
+      // String key = inputData.getKey();
+      // Iterable<RankedPage> value = inputData.getValue();
+      // ArrayList<VotingPage> vpa = new ArrayList<VotingPage>();
+
+      returner.output(KV.of("String", new RankedPage()));
+
+      // for (RankedPage item : value) {
+      // returner.output(KV.of(key, item));
     }
   }
 
@@ -106,6 +138,9 @@ public class PageRankMarci {
     combinedData.apply(Flatten.<KV<String, String>>pCollections())
         .apply(GroupByKey.create())
         .apply(ParDo.of(new Job1Map2()))
+        .apply(ParDo.of(new Job2Map1()))
+        .apply(GroupByKey.create())
+        // .apply(ParDo.of(new Job2Logic()))
         .apply(MapElements.into(TypeDescriptors.strings())
             .via((kvpairs) -> kvpairs.toString()))
         .apply(TextIO.write().to(outputFolder + "\\"));

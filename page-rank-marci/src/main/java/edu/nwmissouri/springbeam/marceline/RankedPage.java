@@ -25,6 +25,13 @@ public class RankedPage implements Serializable {
     return rank;
   }
 
+  RankedPage() {
+    this.pageName = "TEST DATA PLEASE DON'T USE THE EMPTY CONSTRUCTOR K THX";
+    this.voters = new ArrayList<VotingPage>();
+    this.numVoters = 0;
+    this.rank = 0.0;
+  }
+
   RankedPage(String pageName, ArrayList<VotingPage> voters) {
     this.pageName = pageName;
     this.voters = voters;
@@ -40,12 +47,13 @@ public class RankedPage implements Serializable {
   }
 
   public String toString() {
-    String pageString = this.pageName + ", VT:[";
-    for (VotingPage voterName : this.voters) {
-      pageString += voterName.toString() + ", ";
-    }
-    pageString += "], RK:" + this.rank;
+    // String pageString = this.pageName + ", VT:[";
+    // for (VotingPage voterName : this.voters) {
+    //   pageString += voterName.toString();
+    // }
+    // pageString += "[, RK:" + this.rank;
 
-    return pageString;
+    // return pageString;
+    return "This is a Ranked Page";
   }
 }
