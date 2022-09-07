@@ -47,13 +47,13 @@ public class RankedPage implements Serializable {
   }
 
   public String toString() {
-    // String pageString = this.pageName + ", VT:[";
-    // for (VotingPage voterName : this.voters) {
-    //   pageString += voterName.toString();
-    // }
-    // pageString += "[, RK:" + this.rank;
+    String pageString = this.pageName + ", VT:[";
+    for (VotingPage voterName : this.voters) {
+      pageString += voterName.toString();
+    }
+    pageString += "[, RK:" + this.rank;
 
-    // return pageString;
-    return "This is a Ranked Page";
+    return pageString;
+    // return "This is a Ranked Page";
   }
 }

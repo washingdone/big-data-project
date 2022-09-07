@@ -37,9 +37,10 @@ public class VotingPage implements Serializable {
   }
 
   public String toString() {
-    String data = this.voterName;
+  String data = this.voterName;
     data += ", CV:" + this.contributorVotes;
     data += ", RK:" + this.rank;
     return data;
+    // return "This is a Voting Page";
   }
 }

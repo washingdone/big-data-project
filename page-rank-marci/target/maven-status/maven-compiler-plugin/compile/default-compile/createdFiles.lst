@@ -20,4 +20,5 @@ edu\nwmissouri\springbeam\marceline\subprocess\SubProcessPipelineOptions$SubProc
 edu\nwmissouri\springbeam\marceline\common\WriteOneFilePerWindow.class
 edu\nwmissouri\springbeam\marceline\subprocess\kernel\SubProcessCommandLineArgs$Command.class
 edu\nwmissouri\springbeam\marceline\subprocess\ExampleEchoPipeline$EchoInputDoFn.class
+edu\nwmissouri\springbeam\marceline\PageRankMarci$Job2Logic.class
 edu\nwmissouri\springbeam\marceline\subprocess\SubProcessPipelineOptions.class
